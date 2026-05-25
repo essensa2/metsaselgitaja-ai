@@ -16,6 +16,17 @@ export type ForestArea = {
   sourceLayer?: string;
   sourceId?: string;
   inventoryDate?: string | null;
+  unknowns?: {
+    areaHa?: boolean;
+    dominantTree?: boolean;
+    lastCutYear?: boolean;
+    county?: boolean;
+  };
+  displayValues?: {
+    areaHa?: string;
+    dominantTree?: string;
+    lastCutYear?: string;
+  };
 };
 
 export type AnalysisReport = {
@@ -153,16 +164,33 @@ export function generateMockAnalysis(area: ForestArea): AnalysisReport {
 
 export function generateMockAiAnalysis(area: ForestArea): AiAnalysisResult {
   const report = generateMockAnalysis(area);
+  const source = "Keskkonnaagentuur / Metsaregister WFS";
+  const missingDataNotice =
+    "Selle järelduse tegemiseks on vaja täiendavaid andmeid.";
 
   return {
     summary: report.summary,
-    facts: report.dataObservations,
-    risks: report.risks,
+    facts: [
+      `Kindel fakt: ala nimi on ${area.name}.`,
+      `Kindel fakt: pindala on ${area.displayValues?.areaHa ?? `${area.sizeHa.toFixed(1)} ha`}.`,
+      `Kindel fakt: andmeallikas on ${source}.`,
+      ...report.dataObservations.filter(
+        (item) => !item.toLowerCase().includes("mock"),
+      ),
+    ],
+    risks: [
+      `Võimalik tõlgendus: riskiskoor ${area.riskScore}/100 on prototüübi abihinnang, mitte ametlik otsus.`,
+      missingDataNotice,
+      ...report.risks,
+    ],
     plainLanguageExplanation: report.plainMeaning,
-    recommendedChecks: report.nextChecks,
-    dataSources: report.sources,
+    recommendedChecks: [
+      "Kontrollida, kas valitud eraldise kohta on olemas metsateatis või raieotsuse andmed.",
+      "Võrrelda eraldist kaitsealade ja planeeringupiirangute kihtidega.",
+      ...report.nextChecks,
+    ],
+    dataSources: Array.from(new Set([source, ...report.sources])),
     confidence: area.isRealData ? "medium" : "low",
-    disclaimer:
-      "Tegemist on prototüübi automaatse kokkuvõttega. Järeldused tuleb kontrollida algandmetest.",
+    disclaimer: `Tegemist on prototüübi automaatse kokkuvõttega. ${missingDataNotice} Järeldused tuleb kontrollida algandmetest.`,
   };
 }

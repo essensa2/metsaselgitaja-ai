@@ -9,12 +9,12 @@ export type RealDataLayer = {
 
 export const realDataLayers: RealDataLayer[] = [
   {
-    id: "metsaregister-eraldis-sample",
-    name: "Metsaregistri eraldised",
+    id: "korvemaa-metsaregister",
+    name: "Päris Metsaregistri andmed",
     description:
-      "Väike WFS näidis Soomaa demoala ümbrusest. Kasutatakse ainult visuaalseks prototüübiks.",
-    url: "/data/processed/metsaregister-eraldis-sample.geojson",
+      "Aegviidu / Korvemaa BBOXiga piiratud Metsaregistri eraldiste WFS näidis.",
+    url: "/data/processed/korvemaa-metsaregister.geojson",
     sourceName: "Keskkonnaagentuur / Metsaregister",
-    attribution: "Keskkonnaagentuur, Metsaregister, Keskkonnaportaal WFS",
+    attribution: "Keskkonnaagentuur / Metsaregister WFS",
   },
 ];

@@ -14,13 +14,19 @@ const LeafletMapClient = dynamic(() => import("./LeafletMapClient"), {
 
 type LeafletMapProps = {
   selectedAreaId?: string;
+  demoFocusKey?: number;
   onSelectArea: (area: ForestArea) => void;
 };
 
-export function LeafletMap({ selectedAreaId, onSelectArea }: LeafletMapProps) {
+export function LeafletMap({
+  selectedAreaId,
+  demoFocusKey,
+  onSelectArea,
+}: LeafletMapProps) {
   return (
     <LeafletMapClient
       selectedAreaId={selectedAreaId}
+      demoFocusKey={demoFocusKey}
       onSelectArea={onSelectArea}
     />
   );

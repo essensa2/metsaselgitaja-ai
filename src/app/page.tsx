@@ -58,6 +58,24 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function areaDisplayValue(area: ForestArea) {
+  return area.displayValues?.areaHa ?? `${area.sizeHa.toFixed(1)} ha`;
+}
+
+function dominantTreeDisplayValue(area: ForestArea) {
+  return area.displayValues?.dominantTree ?? area.dominantSpecies;
+}
+
+function lastCutYearDisplayValue(area: ForestArea) {
+  if (area.displayValues?.lastCutYear) {
+    return area.displayValues.lastCutYear;
+  }
+
+  return area.isRealData
+    ? `Inventeerimise aasta: ${area.lastCuttingYear}`
+    : String(area.lastCuttingYear);
+}
+
 function ReportSection({
   title,
   value,
@@ -97,8 +115,8 @@ function AiResponseCard({ analysis }: { analysis: AiAnalysisResult }) {
       </div>
       <div className="space-y-3">
         <ReportSection title="Kokkuvõte" value={analysis.summary} />
-        <ReportSection title="Faktid" value={analysis.facts} />
-        <ReportSection title="Riskid" value={analysis.risks} />
+        <ReportSection title="Kindlad faktid" value={analysis.facts} />
+        <ReportSection title="Võimalikud tõlgendused" value={analysis.risks} />
         <ReportSection
           title="Inimkeelne selgitus"
           value={analysis.plainLanguageExplanation}
@@ -133,9 +151,9 @@ function formatReportMarkdown(area: ForestArea, report: AnalysisReport, timestam
 
 - Area name: ${area.name}
 - County: ${area.county}
-- Size: ${area.sizeHa.toFixed(1)} ha
-- Dominant tree species: ${area.dominantSpecies}
-- Last known cutting year: ${area.lastCuttingYear}
+- Size: ${areaDisplayValue(area)}
+- Dominant tree species: ${dominantTreeDisplayValue(area)}
+- Last known cutting year: ${lastCutYearDisplayValue(area)}
 - Clear-cutting info: ${area.clearCutHa.toFixed(1)} ha mock lageraieala
 - Remote sensing changes: ${area.remoteSensingChange} (${area.remoteSensingChangePct}%)
 
@@ -260,19 +278,19 @@ function ReportCard({
                 <div>
                   <dt className="text-[#6a7668]">Size</dt>
                   <dd className="font-medium text-[#1d2a1d]">
-                    {area.sizeHa.toFixed(1)} ha
+                    {areaDisplayValue(area)}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-[#6a7668]">Dominant tree species</dt>
                   <dd className="font-medium text-[#1d2a1d]">
-                    {area.dominantSpecies}
+                    {dominantTreeDisplayValue(area)}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-[#6a7668]">Last known cutting year</dt>
                   <dd className="font-medium text-[#1d2a1d]">
-                    {area.lastCuttingYear}
+                    {lastCutYearDisplayValue(area)}
                   </dd>
                 </div>
               </dl>
@@ -340,6 +358,7 @@ function Sidebar({
   isReportOpen,
   isGenerating,
   analysisError,
+  isKorvemaaDemoActive,
   onGenerate,
   onOpenReport,
   onCloseReport,
@@ -351,23 +370,27 @@ function Sidebar({
   isReportOpen: boolean;
   isGenerating: boolean;
   analysisError: string | null;
+  isKorvemaaDemoActive: boolean;
   onGenerate: () => void;
   onOpenReport: () => void;
   onCloseReport: () => void;
 }) {
   if (!selectedArea) {
-  return (
+    return (
       <aside className="flex min-h-[420px] items-center justify-center border-t border-[#d8dfd2] bg-white p-8 text-center lg:min-h-[620px] lg:border-l lg:border-t-0">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-[#6a7668]">
             AI Selgitaja
           </p>
           <h2 className="mt-3 text-xl font-semibold text-[#1d2a1d]">
-            Vali analüüsitav metsaala
+            {isKorvemaaDemoActive
+              ? "Vali Kõrvemaa metsaeraldis"
+              : "Vali analüüsitav metsaala"}
           </h2>
           <p className="mt-3 text-sm leading-6 text-[#536153]">
-            Kliki kaardil metsaalal või kasuta demo kiirnuppe. Andmed kuvatakse
-            siin enne AI selgituse koostamist.
+            {isKorvemaaDemoActive
+              ? "Kliki sinisel Metsaregistri eraldisel. Seejärel kuvame olemasolevad väljad ning saad lasta MetsaSelgitaja AI-l tehnilised andmed inimkeelde tõlkida."
+              : "Kliki kaardil metsaalal või kasuta demo kiirnuppe. Andmed kuvatakse siin enne AI selgituse koostamist."}
           </p>
         </div>
       </aside>
@@ -385,7 +408,11 @@ function Sidebar({
             <h2 className="text-xl font-semibold text-[#1d2a1d]">
               {selectedArea.name}
             </h2>
-            <p className="mt-1 text-sm text-[#536153]">{selectedArea.county}</p>
+            <p className="mt-1 text-sm text-[#536153]">
+              {selectedArea.unknowns?.county
+                ? `${selectedArea.county} (täpsustamata)`
+                : selectedArea.county}
+            </p>
             {selectedArea.isRealData ? (
               <p className="mt-2 inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-800">
                 Pärisandmete näidis: {selectedArea.sourceLayer}
@@ -399,22 +426,25 @@ function Sidebar({
       <div className="space-y-5 p-5">
         <dl className="rounded-md border border-[#dfe7d8] bg-white px-4">
           <DetailRow label="Area name" value={selectedArea.name} />
-          <DetailRow label="County" value={selectedArea.county} />
+          <DetailRow
+            label="County"
+            value={
+              selectedArea.unknowns?.county
+                ? `${selectedArea.county} (täpsustamata)`
+                : selectedArea.county
+            }
+          />
           <DetailRow
             label="Size in hectares"
-            value={`${selectedArea.sizeHa.toFixed(1)} ha`}
+            value={areaDisplayValue(selectedArea)}
           />
           <DetailRow
             label="Dominant tree species"
-            value={selectedArea.dominantSpecies}
+            value={dominantTreeDisplayValue(selectedArea)}
           />
           <DetailRow
             label="Last known cutting year"
-            value={
-              selectedArea.isRealData
-                ? `Inventeerimise aasta: ${selectedArea.lastCuttingYear}`
-                : String(selectedArea.lastCuttingYear)
-            }
+            value={lastCutYearDisplayValue(selectedArea)}
           />
           <DetailRow
             label="Clear-cutting info"
@@ -488,14 +518,18 @@ export default function Home() {
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [demoFocusKey, setDemoFocusKey] = useState(0);
+  const [isKorvemaaDemoActive, setIsKorvemaaDemoActive] = useState(false);
 
   const selectedAreaId = selectedArea?.id;
   const mapIntro = useMemo(
     () =>
       selectedArea
         ? `${selectedArea.name} on valitud. Vajuta raporti loomiseks nuppu.`
-        : "Vali kaardilt metsaala või käivita üks valmis demo stsenaarium.",
-    [selectedArea],
+        : isKorvemaaDemoActive
+          ? "Vali kaardilt metsaeraldis ja MetsaSelgitaja AI tõlgib tehnilised andmed inimkeelde."
+          : "Vali kaardilt metsaala või käivita üks valmis demo stsenaarium.",
+    [isKorvemaaDemoActive, selectedArea],
   );
 
   function handleSelectArea(area: ForestArea) {
@@ -505,6 +539,17 @@ export default function Home() {
     setReportTimestamp(null);
     setIsReportOpen(false);
     setAnalysisError(null);
+  }
+
+  function handleOpenKorvemaaDemo() {
+    setSelectedArea(null);
+    setReport(null);
+    setAiAnalysis(null);
+    setReportTimestamp(null);
+    setIsReportOpen(false);
+    setAnalysisError(null);
+    setIsKorvemaaDemoActive(true);
+    setDemoFocusKey((current) => current + 1);
   }
 
   async function runAnalysis(area: ForestArea) {
@@ -583,9 +628,14 @@ export default function Home() {
         <section className="rounded-lg border border-[#d8dfd2] bg-white p-5 shadow-sm sm:p-6">
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_390px] lg:items-start">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#6a7668]">
-                Avaliku sektori avaandmete prototüüp
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#6a7668]">
+                  Avaliku sektori avaandmete prototüüp
+                </p>
+                <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-800">
+                  Päris avaandmete demo
+                </span>
+              </div>
               <h1 className="mt-2 text-3xl font-semibold text-[#1d2a1d] sm:text-4xl">
                 Muudame metsandusandmed inimkeelde
               </h1>
@@ -595,8 +645,16 @@ export default function Home() {
                 ametnikul, ajakirjanikul või kogukonnal kiiresti aru saada, mida
                 andmetest tegelikult näha on.
               </p>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-[#1d2a1d]">
+                Vali kaardilt metsaeraldis ja MetsaSelgitaja AI tõlgib
+                tehnilised andmed inimkeelde.
+              </p>
               <p className="mt-3 text-sm font-medium text-[#1d2a1d]">
                 {mapIntro}
+              </p>
+              <p className="mt-4 max-w-3xl rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                Tegemist on häkatoni prototüübiga. Andmed ja järeldused tuleb
+                kontrollida algallikatest.
               </p>
             </div>
 
@@ -615,6 +673,20 @@ export default function Home() {
               </div>
 
               <div className="grid gap-2">
+              <button
+                type="button"
+                onClick={handleOpenKorvemaaDemo}
+                disabled={isGenerating}
+                className="rounded-md border border-sky-700 bg-sky-700 px-4 py-3 text-left transition hover:bg-sky-800 disabled:cursor-wait disabled:opacity-60"
+              >
+                <span className="block text-sm font-semibold text-white">
+                  Ava Kõrvemaa demo
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-sky-50">
+                  Keskendab kaardi Aegviidu/Kõrvemaa päris Metsaregistri
+                  eraldistele.
+                </span>
+              </button>
               <button
                 type="button"
                 onClick={() => runDemo(forestAreas[2])}
@@ -663,6 +735,7 @@ export default function Home() {
           <div className="h-[55vh] min-h-[380px] sm:min-h-[460px] xl:h-full xl:min-h-[620px]">
             <LeafletMap
               selectedAreaId={selectedAreaId}
+              demoFocusKey={demoFocusKey}
               onSelectArea={handleSelectArea}
             />
           </div>
@@ -674,6 +747,7 @@ export default function Home() {
             isReportOpen={isReportOpen}
             isGenerating={isGenerating}
             analysisError={analysisError}
+            isKorvemaaDemoActive={isKorvemaaDemoActive}
             onGenerate={handleGenerateReport}
             onOpenReport={handleOpenReport}
             onCloseReport={handleCloseReport}

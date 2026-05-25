@@ -16,11 +16,12 @@ import {
   Tooltip,
   useMap,
 } from "react-leaflet";
-import type { Feature, GeoJsonObject, Geometry } from "geojson";
+import type { Feature, GeoJsonObject } from "geojson";
 import { realDataLayers } from "@/data/real-data-layers";
+import { normalizeForestFeature } from "@/lib/forest/normalizeForestFeature";
 import { forestAreas, type ForestArea } from "@/lib/forest-analysis";
 
-const defaultCenter: [number, number] = [58.5953, 25.0136];
+const defaultCenter: [number, number] = [59.286, 25.61];
 
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: typeof markerIcon2x === "string" ? markerIcon2x : markerIcon2x.src,
@@ -38,11 +39,11 @@ type LayerKey =
 type LayerState = Record<LayerKey, boolean>;
 
 const layerLabels: { key: LayerKey; label: string }[] = [
-  { key: "forestAreas", label: "Metsaalad" },
+  { key: "forestAreas", label: "Demoalad" },
   { key: "clearCuts", label: "Lageraie info" },
   { key: "riskScore", label: "Riskiskoor" },
   { key: "remoteSensing", label: "Kaugseire muutused" },
-  { key: "realMetsaregister", label: "Metsaregistri WFS näidis" },
+  { key: "realMetsaregister", label: "Päris Metsaregistri andmed" },
 ];
 
 function getRiskLevel(score: number) {
@@ -84,114 +85,12 @@ function getRemoteSensingColor(area: ForestArea) {
   return "#0f766e";
 }
 
-function getTreeSpeciesName(code: unknown) {
-  const species: Record<string, string> = {
-    KU: "Kuusk",
-    MA: "Mänd",
-    KS: "Kask",
-    HB: "Haab",
-    LM: "Sanglepp",
-    LV: "Hall lepp",
-    SA: "Saar",
-    TA: "Tamm",
-  };
+type StyleableLayer = {
+  setStyle: (style: L.PathOptions) => void;
+};
 
-  return typeof code === "string" ? species[code] ?? `Kood ${code}` : "Määramata";
-}
-
-function getRiskFromFireCode(code: unknown) {
-  const parsed = typeof code === "number" ? code : Number(code);
-
-  if (!Number.isFinite(parsed)) {
-    return 35;
-  }
-
-  return Math.max(15, Math.min(85, Math.round(parsed * 17)));
-}
-
-function getFeatureCenter(geometry: Geometry | null): [number, number] {
-  const points: [number, number][] = [];
-
-  function collect(value: unknown) {
-    if (!Array.isArray(value)) {
-      return;
-    }
-
-    if (
-      value.length >= 2 &&
-      typeof value[0] === "number" &&
-      typeof value[1] === "number"
-    ) {
-      points.push([value[1], value[0]]);
-      return;
-    }
-
-    value.forEach(collect);
-  }
-
-  if (geometry && "coordinates" in geometry) {
-    collect(geometry.coordinates);
-  }
-
-  if (geometry?.type === "GeometryCollection") {
-    geometry.geometries.forEach((item) => {
-      if ("coordinates" in item) {
-        collect(item.coordinates);
-      }
-    });
-  }
-
-  if (points.length === 0) {
-    return [58.432, 25.055];
-  }
-
-  const sum = points.reduce(
-    (acc, point) => [acc[0] + point[0], acc[1] + point[1]],
-    [0, 0],
-  );
-
-  return [sum[0] / points.length, sum[1] / points.length];
-}
-
-function forestAreaFromWfsFeature(feature: Feature): ForestArea {
-  const properties = feature.properties ?? {};
-  const getString = (key: string) =>
-    typeof properties[key] === "string" ? properties[key] : undefined;
-  const getNumber = (key: string) => {
-    const value = properties[key];
-    return typeof value === "number" ? value : Number(value);
-  };
-  const center = getFeatureCenter(feature.geometry);
-  const eraldiseNr = getNumber("eraldise_nr");
-  const kvartal = getString("kvartali_nr") ?? "teadmata kvartal";
-  const inventoryDate = getString("invent_kp") ?? null;
-  const inventoryYear = inventoryDate
-    ? Number(inventoryDate.slice(0, 4))
-    : new Date().getFullYear();
-  const riskScore = getRiskFromFireCode(properties.tuleohu_kood);
-
-  return {
-    id: `real-${String(feature.id ?? properties.id ?? properties.sys_id)}`,
-    name: `Metsaregistri eraldis ${kvartal}-${Number.isFinite(eraldiseNr) ? eraldiseNr : "?"}`,
-    county: "Päris WFS näidisala",
-    sizeHa: Number.isFinite(getNumber("pindala")) ? getNumber("pindala") : 0,
-    dominantSpecies: getTreeSpeciesName(properties.peapuuliik_kood),
-    lastCuttingYear: Number.isFinite(inventoryYear)
-      ? inventoryYear
-      : new Date().getFullYear(),
-    riskScore,
-    clearCutHa: 0,
-    remoteSensingChange:
-      riskScore >= 65 ? "Kõrge" : riskScore >= 40 ? "Mõõdukas" : "Madal",
-    remoteSensingChangePct: Math.max(5, Math.round(riskScore / 3)),
-    dataSources: ["Keskkonnaagentuur", "Metsaregister WFS"],
-    center,
-    bounds: [center],
-    isRealData: true,
-    sourceLayer: "metsaregister:eraldis",
-    sourceId: String(feature.id ?? properties.id ?? properties.sys_id ?? ""),
-    inventoryDate,
-  };
+function isStyleableLayer(layer: L.Layer): layer is L.Layer & StyleableLayer {
+  return "setStyle" in layer && typeof layer.setStyle === "function";
 }
 
 function MapResizeHandler() {
@@ -219,11 +118,36 @@ function MapResizeHandler() {
 
 type LeafletMapClientProps = {
   selectedAreaId?: string;
+  demoFocusKey?: number;
   onSelectArea: (area: ForestArea) => void;
 };
 
+function KorvemaaDemoFocus({
+  demoFocusKey,
+  onFocus,
+}: {
+  demoFocusKey?: number;
+  onFocus: () => void;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!demoFocusKey) {
+      return;
+    }
+
+    map.flyTo(defaultCenter, 11, {
+      duration: 0.8,
+    });
+    onFocus();
+  }, [demoFocusKey, map, onFocus]);
+
+  return null;
+}
+
 export default function LeafletMapClient({
   selectedAreaId,
+  demoFocusKey,
   onSelectArea,
 }: LeafletMapClientProps) {
   const [layers, setLayers] = useState<LayerState>({
@@ -239,6 +163,9 @@ export default function LeafletMapClient({
   const [realLayerStatus, setRealLayerStatus] = useState<
     "loading" | "ready" | "error"
   >("loading");
+  const [selectedRealFeatureId, setSelectedRealFeatureId] = useState<
+    string | number | null
+  >(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -281,6 +208,14 @@ export default function LeafletMapClient({
     }));
   }
 
+  function enableKorvemaaDemoLayer() {
+    setLayers((current) => ({
+      ...current,
+      realMetsaregister: true,
+      forestAreas: false,
+    }));
+  }
+
   return (
     <div className="relative h-full min-h-[420px] w-full">
       <MapContainer
@@ -290,32 +225,78 @@ export default function LeafletMapClient({
         className="h-full min-h-[420px] w-full"
       >
         <MapResizeHandler />
+        <KorvemaaDemoFocus
+          demoFocusKey={demoFocusKey}
+          onFocus={enableKorvemaaDemoLayer}
+        />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {layers.realMetsaregister && realForestData ? (
           <GeoJSONLayer
+            key={selectedRealFeatureId ?? "korvemaa-metsaregister"}
             data={realForestData}
-            pathOptions={{
-              color: "#0f172a",
-              fillColor: "#38bdf8",
-              fillOpacity: 0.24,
-              opacity: 0.9,
-              weight: 2,
+            style={(feature) => {
+              const isSelected =
+                String(feature?.id ?? feature?.properties?.id ?? "") ===
+                String(selectedRealFeatureId ?? "");
+
+              return {
+                color: isSelected ? "#0f172a" : "#0369a1",
+                fillColor: isSelected ? "#22c55e" : "#38bdf8",
+                fillOpacity: isSelected ? 0.36 : 0.14,
+                opacity: 0.95,
+                weight: isSelected ? 3 : 1.4,
+              };
             }}
             onEachFeature={(feature, layer) => {
-              const realArea = forestAreaFromWfsFeature(feature as Feature);
+              const realArea = normalizeForestFeature(feature as Feature);
+              const defaultStyle = {
+                color: "#0369a1",
+                fillColor: "#38bdf8",
+                fillOpacity: 0.14,
+                opacity: 0.95,
+                weight: 1.4,
+              };
 
               layer.bindTooltip(
-                `${realArea.name}<br />Pindala: ${realArea.sizeHa.toFixed(1)} ha<br />Allikas: Metsaregister WFS`,
+                `${realArea.name}<br />Pindala: ${realArea.displayValues?.areaHa ?? "Andmetes puudub"}<br />Allikas: Keskkonnaagentuur / Metsaregister WFS`,
                 { sticky: true },
               );
 
-              layer.on("click", () => onSelectArea(realArea));
+              layer.on("mouseover", () => {
+                if (!isStyleableLayer(layer)) {
+                  return;
+                }
+
+                layer.setStyle({
+                  color: "#0f172a",
+                  fillColor: "#7dd3fc",
+                  fillOpacity: 0.28,
+                  weight: 2.4,
+                });
+              });
+
+              layer.on("mouseout", () => {
+                if (!isStyleableLayer(layer)) {
+                  return;
+                }
+
+                const featureId = feature.id ?? feature.properties?.id ?? "";
+
+                if (String(featureId) !== String(selectedRealFeatureId ?? "")) {
+                  layer.setStyle(defaultStyle);
+                }
+              });
+
+              layer.on("click", () => {
+                setSelectedRealFeatureId(feature.id ?? feature.properties?.id ?? "");
+                onSelectArea(realArea);
+              });
             }}
           >
-            <Tooltip sticky>Metsaregistri WFS näidis</Tooltip>
+            <Tooltip sticky>Päris Metsaregistri andmed</Tooltip>
           </GeoJSONLayer>
         ) : null}
         {forestAreas.map((area) => {
@@ -477,7 +458,7 @@ export default function LeafletMapClient({
 
       {realLayerStatus === "ready" ? (
         <div className="pointer-events-none absolute bottom-8 left-4 z-[1000] max-w-[520px] rounded-md border border-[#d8dfd2] bg-white/95 px-3 py-2 text-xs leading-5 text-[#42513f] shadow-lg backdrop-blur">
-          Andmeallikad: {realDataLayers[0].attribution}
+          Andmeallikas: {realDataLayers[0].attribution}
         </div>
       ) : null}
     </div>
