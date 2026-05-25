@@ -166,6 +166,7 @@ export default function LeafletMapClient({
   const [selectedRealFeatureId, setSelectedRealFeatureId] = useState<
     string | number | null
   >(null);
+  const [isMobileLayerOpen, setIsMobileLayerOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -220,7 +221,7 @@ export default function LeafletMapClient({
     <div className="relative h-full min-h-[420px] w-full">
       <MapContainer
         center={defaultCenter}
-        zoom={7}
+        zoom={11}
         scrollWheelZoom
         className="h-full min-h-[420px] w-full"
       >
@@ -402,16 +403,96 @@ export default function LeafletMapClient({
         ))}
       </MapContainer>
 
-      <div className="pointer-events-none absolute left-4 top-4 z-[1000] flex w-[230px] flex-col gap-3">
-        <div className="pointer-events-auto rounded-lg border border-[#d8dfd2] bg-white/95 p-3 shadow-lg backdrop-blur">
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#5f6f5a]">
+      <button
+        type="button"
+        onClick={() => setIsMobileLayerOpen((current) => !current)}
+        aria-label={isMobileLayerOpen ? "Sulge kaardikihid" : "Ava kaardikihid"}
+        className={`absolute top-24 z-[1001] flex items-center gap-1.5 rounded-l-2xl border border-r-0 border-white/70 bg-white/95 px-2.5 py-3 text-xs font-semibold text-[#14532d] shadow-xl backdrop-blur-xl transition-transform duration-300 lg:hidden ${
+          isMobileLayerOpen ? "right-[260px]" : "right-0"
+        }`}
+      >
+        <span aria-hidden className="text-base leading-none">🗺</span>
+        <span className="writing-mode-vertical hidden">Kihid</span>
+        <span>Kihid</span>
+        <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-900">
+          {Object.values(layers).filter(Boolean).length}
+        </span>
+      </button>
+
+      {isMobileLayerOpen ? (
+        <button
+          type="button"
+          aria-label="Sulge kihid"
+          onClick={() => setIsMobileLayerOpen(false)}
+          className="absolute inset-0 z-[1000] bg-[#0f1f14]/20 backdrop-blur-[1px] lg:hidden"
+        />
+      ) : null}
+
+      <aside
+        className={`absolute right-0 top-0 z-[1001] flex h-full w-[260px] max-w-[80vw] flex-col gap-3 border-l border-white/70 bg-white/95 p-4 shadow-2xl backdrop-blur-xl transition-transform duration-300 lg:hidden ${
+          isMobileLayerOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-semibold uppercase tracking-wide text-[#5f6f5a]">
+            Kaardikihid
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsMobileLayerOpen(false)}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-emerald-100 text-[#66756a]"
+            aria-label="Sulge"
+          >
+            ×
+          </button>
+        </div>
+        <div className="space-y-1">
+          {layerLabels.map((layer) => (
+            <label
+              key={layer.key}
+              className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-xl px-2 text-sm text-[#1d2a1d] active:bg-[#f1f5ec]"
+            >
+              <span>{layer.label}</span>
+              <input
+                type="checkbox"
+                checked={layers[layer.key]}
+                onChange={() => toggleLayer(layer.key)}
+                className="h-5 w-5 accent-[#14532d]"
+              />
+            </label>
+          ))}
+        </div>
+        <div className="mt-2 rounded-2xl border border-emerald-100 bg-[#f6f9f2] p-3">
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#5f6f5a]">
+            Riskitasemed
+          </div>
+          <div className="space-y-1.5 text-xs text-[#42513f]">
+            <div className="flex items-center gap-2">
+              <span className="h-3 w-5 rounded-sm bg-[#22c55e]" />
+              Madal risk: 0-39
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="h-3 w-5 rounded-sm bg-[#f59e0b]" />
+              Keskmine risk: 40-64
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="h-3 w-5 rounded-sm bg-[#ef4444]" />
+              Kõrge risk: 65-100
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div className="pointer-events-none absolute bottom-36 left-5 z-[1000] hidden w-[250px] flex-col gap-3 lg:flex">
+        <div className="pointer-events-auto rounded-2xl border border-white/70 bg-white/95 p-4 shadow-2xl backdrop-blur-xl">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#5f6f5a]">
             Kaardikihid
           </div>
           <div className="space-y-2">
             {layerLabels.map((layer) => (
               <label
                 key={layer.key}
-                className="flex cursor-pointer items-center justify-between gap-3 rounded-md px-2 py-1.5 text-sm text-[#1d2a1d] hover:bg-[#f1f5ec]"
+                className="flex cursor-pointer items-center justify-between gap-3 rounded-xl px-2 py-2 text-sm text-[#1d2a1d] transition hover:bg-[#f1f5ec]"
               >
                 <span>{layer.label}</span>
                 <input
@@ -435,8 +516,8 @@ export default function LeafletMapClient({
           ) : null}
         </div>
 
-        <div className="pointer-events-auto rounded-lg border border-[#d8dfd2] bg-white/95 p-3 shadow-lg backdrop-blur">
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#5f6f5a]">
+        <div className="pointer-events-auto rounded-2xl border border-white/70 bg-white/95 p-4 shadow-2xl backdrop-blur-xl">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#5f6f5a]">
             Riskitasemed
           </div>
           <div className="space-y-2 text-xs text-[#42513f]">
@@ -457,7 +538,7 @@ export default function LeafletMapClient({
       </div>
 
       {realLayerStatus === "ready" ? (
-        <div className="pointer-events-none absolute bottom-8 left-4 z-[1000] max-w-[520px] rounded-md border border-[#d8dfd2] bg-white/95 px-3 py-2 text-xs leading-5 text-[#42513f] shadow-lg backdrop-blur">
+        <div className="pointer-events-none absolute bottom-24 right-5 z-[950] hidden max-w-[360px] rounded-full border border-white/70 bg-white/95 px-3 py-1.5 text-[11px] leading-4 text-[#42513f] shadow-xl backdrop-blur-xl lg:block">
           Andmeallikas: {realDataLayers[0].attribution}
         </div>
       ) : null}
