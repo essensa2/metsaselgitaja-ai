@@ -1,36 +1,103 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Metsa Selgitaja AI
 
-## Getting Started
+Next.js App Router prototype for a forestry AI hackathon MVP. The app currently runs fully on local mock data and does not require Supabase or OpenAI credentials.
 
-First, run the development server:
+## Local development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3020`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Copy `.env.example` to `.env.local` when you are ready to connect real services:
 
-## Learn More
+```bash
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+AI_PROVIDER=openrouter
+OPENROUTER_API_KEY=
+AI_MODEL=openai/gpt-5.4-mini
+OPENAI_API_KEY=
+```
 
-To learn more about Next.js, take a look at the following resources:
+These values are optional for now. If Supabase values are missing, `src/lib/supabase.ts` returns `null` and the app keeps using local mock data. If `OPENROUTER_API_KEY` is missing, `/api/analyze-forest` returns a safe mock analysis.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## AI provider
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The server-side AI provider lives in `src/lib/ai/provider.ts`.
 
-## Deploy on Vercel
+Current provider support:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `AI_PROVIDER=openrouter`
+- `OPENROUTER_API_KEY`
+- `AI_MODEL`, default example `openai/gpt-5.4-mini`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The frontend never receives provider API keys. It sends the selected forest area JSON to `/api/analyze-forest`; the route either calls OpenRouter server-side or returns mock analysis if configuration is missing or the provider fails.
+
+## Supabase skeleton
+
+The initial database schema is in `supabase/schema.sql`.
+
+It includes:
+
+- `projects`
+- `forest_areas`
+- `datasets`
+- `analysis_reports`
+- `team_notes`
+
+To apply it later, create a Supabase project, add credentials to `.env.local`, then run the SQL in the Supabase SQL editor or through the Supabase CLI.
+
+## Current prototype features
+
+- Leaflet map with forest area polygons
+- Mock forestry layers: metsaalad, lageraie info, riskiskoor, kaugseire muutused
+- Small real Metsaregister WFS sample layer loaded from `public/data/processed`
+- AI Selgitaja sidebar with mock Estonian explanation
+- Future-ready `/api/analyze-forest` API route with OpenRouter support and mock fallback when `OPENROUTER_API_KEY` is missing
+- Report modal with copy and Markdown download
+- Supabase-ready project skeleton with mock-data fallback
+
+## Data fetching
+
+The demo uses mock forestry analysis data by default and one small real public WFS sample for map context.
+
+Fetch and prepare the current demo sample:
+
+```bash
+npm run data:prepare
+```
+
+This writes:
+
+- `public/data/raw/metsaregister-eraldis-sample.raw.geojson`
+- `public/data/processed/metsaregister-eraldis-sample.geojson`
+
+The sample is fetched from the public Metsaregister WFS service with a small BBOX around the Soomaa demo area. Do not download national-scale datasets for the hackathon demo.
+
+More source notes are documented in `docs/data-sources.md`.
+
+## Real vs mock data
+
+Real data currently used:
+
+- Metsaregister forest compartment sample from `https://gsavalik.envir.ee/geoserver/metsaregister/wfs`
+
+Mock data currently used:
+
+- Demo forest area names and selected polygons
+- Risk scores
+- Clear-cutting summary values
+- Remote-sensing change scores
+- AI analysis text when `OPENAI_API_KEY` is missing
+
+## Verification
+
+```bash
+npm run lint
+npm run build
+```
